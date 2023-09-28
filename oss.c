@@ -41,7 +41,7 @@ int main(int argc, char** argv) {
 	int timelimit;
 
 	//allocate shared memory
-	const int sh_key = ftok("oss.c", 0);
+	const int sh_key = ftok("./oss.c", 0);
 	const int shm_id = shmget(sh_key, sizeof(int) * 2, IPC_CREAT | 0666);
 	if(shm_id <= 0) {
 		printf("Shared memory allocation failed\n");
@@ -91,7 +91,7 @@ int main(int argc, char** argv) {
 	int runningChildren;
 	int finalChild;
 	totalChildren = 0;
-	runningChildren = 1; //this might be problematic
+	runningChildren = 3; //this might be problematic
 
 	//test to see if the latest worker to be initiated has completed its operation?
 
@@ -112,10 +112,12 @@ int main(int argc, char** argv) {
        		}
        	}*/
 
+	char test = 'c';
+	char *param = &test;
 	do { //Children are running if a PCB is occupied
 		incrementClock(shm_ptr);
 
-		printf("before clock: %d : %d\n", shm_ptr[0], shm_ptr[1]);
+		printf("oss clock: %d : %d\n", shm_ptr[0], shm_ptr[1]);
 
 		/*if(sixtySecondsHasPassed)
 			terminateProgram();
@@ -123,18 +125,29 @@ int main(int argc, char** argv) {
 		if(halfSecondHasPassed)
 			outputTable();*/
 
-		/*int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
-		if(pid) {
-			endPCB(); //Show in the process table that this child is not being used, ie occupied = false
-			runningChildren--;
-			if(runningChildren < simul) {
+	//int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
+		//if(pid) {
+		//	endPCB(); //Show in the process table that this child is not being used, ie occupied = false
+		//	runningChildren--;
+		//	if(runningChildren < simul) {
 				pid_t childPid = fork(); //Launches child
-				startPCB(); //Add pid to PCB and set to occupied, set start time
-				runningChildren++;
-			}
-		}*/
+				if(childPid == 0) {
+					execlp("./worker", param, NULL);
+					exit(1);
+				}
+				else {
+					printf("childPid: %d\n", childPid);
+				}
+		//		startPCB(); //Add pid to PCB and set to occupied, set start time
+		//		runningChildren++;
+		//	}
+		//}
+		runningChildren--;
 	} while(runningChildren);	
 
+	pid_t wpid;
+	int status = 0;
+	while((wpid = wait(&status)) > 0);
 	//detach from and delete memory
 	shmdt(shm_ptr);
 	shmctl(shm_id, IPC_RMID, NULL);
