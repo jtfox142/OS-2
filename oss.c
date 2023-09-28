@@ -3,6 +3,8 @@
 #include<sys/wait.h>
 #include<stdio.h>
 #include<stdlib.h>
+#include<sys/ipc.h>
+#include<sys/shm.h>
 
 void help() {
         printf("This program is designed to have a parent process fork off into child processes.\n");
@@ -16,11 +18,37 @@ void help() {
 	exit(1);
 }
 
+
+
+/* TODO
+ * Revise the help and README
+ * Create shared memory using ftok and shmget
+ * Iterate the 'system clock' using nested for loops i guess?
+ * 
+ */
+
 int main(int argc, char** argv) {
 	int option;
 	int proc;
 	int simul;
-	char *iter;
+	int timelimit;
+
+	//allocate shared memory
+	const int sh_key = ftok("oss.c", 0);
+	const int shm_id = shmget(sh_key, sizeof(int) * 2, IPC_CREAT | 0666);
+	if(shm_id <= 0) {
+		printf("Shared memory allocation failed\n");
+		exit(1);
+	}
+	printf("id: %d\n", shm_id);
+
+	//attach to shared memory
+	int *shm_ptr;
+	shm_ptr = shmat(shm_id, 0 ,0);
+	if(shm_ptr <= 0) {
+		printf("Attaching to shared memory failed\n");
+		exit(1);
+	}
 
 	while ((option = getopt(argc, argv, "hn:s:t:")) != -1) {
   		switch(option) {
@@ -28,25 +56,42 @@ int main(int argc, char** argv) {
     				help();
     				break;
    			case 'n':
-    				proc = atoi(optarg); //Made these two params into integers to make comparisons simpler
+    				proc = atoi(optarg);
     				break;
    			case 's':
 				simul = atoi(optarg);
 				break;
 			case 't':
-				iter = optarg; //Kept this a char * so I could pass it easier
+				timelimit = atoi(optarg);
 				break;
 		}
 	}
+
 	int totalChildren;
 	int runningChildren;
 	int finalChild;
 	totalChildren = 0;
 	runningChildren = 0;
 
+	while(childrenAreRunning) {
+		incrementClock();
+
+		if(sixtySecondsHasPassed)
+			terminateProgram();
+		
+		if(halfSecondHasPassed)
+			outputTable();
+
+		if(childHasTerminated) {
+			updatePCB(); //Show in the process table that this child is not being used, ie occupied = false
+			if(notDoneLaunchingChildren)
+				launchChild();
+		}
+	}	
+
     	while(totalChildren < proc) { 
 		pid_t childPid = fork();
-		finalChild = childPid; //Gets reassigned every time the loop runs. A sloppy but effective way to get the final child's pid
+		finalChild = childPid;
 		totalChildren++;
 		runningChildren++;
 
@@ -62,6 +107,10 @@ int main(int argc, char** argv) {
 		}
 	}
 	pid_t waitForAllStop = waitpid(finalChild, NULL, 0); //ensures parent doesn't end before final child
-  	return EXIT_SUCCESS;
+  	
+	//detach from and delete memory
+	shmdt(shm_ptr);
+	shmctl(shm_id, IPC_RMID, NULL);
+	return EXIT_SUCCESS;
 }
 
