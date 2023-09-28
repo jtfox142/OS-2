@@ -18,6 +18,13 @@ void help() {
 	exit(1);
 }
 
+void incrementClock(int *shm_ptr) {
+	shm_ptr[1] += 10000;
+	if(shm_ptr[1] >= 1000000000) {
+		shm_ptr[1] = 0;
+		shm_ptr[0] += 1;
+	}
+}
 
 
 /* TODO
@@ -40,7 +47,7 @@ int main(int argc, char** argv) {
 		printf("Shared memory allocation failed\n");
 		exit(1);
 	}
-	printf("id: %d\n", shm_id);
+	//printf("id: %d\n", shm_id);
 
 	//attach to shared memory
 	int *shm_ptr;
@@ -49,6 +56,10 @@ int main(int argc, char** argv) {
 		printf("Attaching to shared memory failed\n");
 		exit(1);
 	}
+
+	//set clock to zero
+	shm_ptr[0] = 0;
+	shm_ptr[1] = 0;
 
 	while ((option = getopt(argc, argv, "hn:s:t:")) != -1) {
   		switch(option) {
@@ -67,47 +78,63 @@ int main(int argc, char** argv) {
 		}
 	}
 
+	struct PCB {
+		int occupied;
+		pid_t pid;
+		int startTimeSec;
+		int startTimeNano;
+	};
+
+	struct PCB processTable[proc];
+
 	int totalChildren;
 	int runningChildren;
 	int finalChild;
 	totalChildren = 0;
-	runningChildren = 0;
+	runningChildren = 1; //this might be problematic
 
-	while(childrenAreRunning) {
-		incrementClock();
+	//test to see if the latest worker to be initiated has completed its operation?
 
-		if(sixtySecondsHasPassed)
+	/*while(totalChildren < proc) { 
+  		pid_t childPid = fork();
+       		finalChild = childPid;
+       		totalChildren++;
+       		runningChildren++;
+                                
+      		if(childPid == 0) {
+       			execlp("./worker", iter, NULL);
+       			exit(1);
+       		}
+       		else{
+       			if(runningChildre
+       				wait(0);
+       				runningChildren--;
+       		}
+       	}*/
+
+	do { //Children are running if a PCB is occupied
+		incrementClock(shm_ptr);
+
+		printf("before clock: %d : %d\n", shm_ptr[0], shm_ptr[1]);
+
+		/*if(sixtySecondsHasPassed)
 			terminateProgram();
 		
 		if(halfSecondHasPassed)
-			outputTable();
+			outputTable();*/
 
-		if(childHasTerminated) {
-			updatePCB(); //Show in the process table that this child is not being used, ie occupied = false
-			if(notDoneLaunchingChildren)
-				launchChild();
-		}
-	}	
-
-    	while(totalChildren < proc) { 
-		pid_t childPid = fork();
-		finalChild = childPid;
-		totalChildren++;
-		runningChildren++;
-
-		if(childPid == 0) {
-			execlp("./worker", iter, NULL);
-			exit(1);
-		}
-		else{
-			if(runningChildren >= simul) {
-				wait(0);
-				runningChildren--; //R.I.P.
+		/*int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
+		if(pid) {
+			endPCB(); //Show in the process table that this child is not being used, ie occupied = false
+			runningChildren--;
+			if(runningChildren < simul) {
+				pid_t childPid = fork(); //Launches child
+				startPCB(); //Add pid to PCB and set to occupied, set start time
+				runningChildren++;
 			}
-		}
-	}
-	pid_t waitForAllStop = waitpid(finalChild, NULL, 0); //ensures parent doesn't end before final child
-  	
+		}*/
+	} while(runningChildren);	
+
 	//detach from and delete memory
 	shmdt(shm_ptr);
 	shmctl(shm_id, IPC_RMID, NULL);
