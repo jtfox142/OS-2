@@ -5,22 +5,49 @@
 #include<sys/ipc.h>
 #include<sys/shm.h>
 
+void output(int pid, int ppid, int sysClockS, int sysClockNano, int termTimeS, int termTimeNano) {
+	printf("WORKER PID:%d PPID:%d SysclockS:%d SysClockNano:%d TermTimeS:%d TermTimeNano:%d\n", pid, ppid, sysClockS, sysClockNano, termTimeS, termTimeNano);	
+}
+
 int main(int argc, char** argv) {
-	int iterations;
-	//iterations = atoi(argv[0]);
+	int seconds;
+	seconds = atoi(argv[0]);
+	int nanoseconds;
+	nanoseconds = atoi(argv[1]);	
+       	
 	pid_t ppid = getppid();
 	pid_t pid = getpid();
+
+	//get access to shared memory
 	const int sh_key = ftok("./oss.c", 0);
 	int shm_id = shmget(sh_key, sizeof(int) * 2, IPC_CREAT | 0666);
 	int *shm_ptr = shmat(shm_id, 0, 0);
-	//printf("key from worker: %d\n", shm_key);
-  	printf("worker clock: %d : %d\n", shm_ptr[0], shm_ptr[1]);
-	/*int i;
-  	for (i = 1; i <= iterations; i++) {
-		printf("WORKER PID:%d PPID:%d Iteration:%d before sleeping\n", pid, ppid, i);
- 		sleep(1);
-		printf("WORKER PID:%d PPID:%d Iteration:%d after sleeping\n", pid, ppid, i);
-	}*/
+
+	int termTimeS;
+        termTimeS = shm_ptr[0] + seconds;
+        int termTimeNano;
+        termTimeNano = shm_ptr[1] + nanoseconds;
+
+	int outputTimer;
+      	outputTimer = shm_ptr[0];
+	int outputCounter;
+	outputCounter = 1;
+	
+	output(pid, ppid, shm_ptr[0], shm_ptr[1], termTimeS, termTimeNano);	
+	printf("--Just starting\n");
+
+  	while (shm_ptr[0] < termTimeS && shm_ptr[1] < termTimeNano) {
+		if(shm_ptr[0] > outputTimer) {
+			outputTimer = shm_ptr[0];
+			output(pid, ppid, shm_ptr[0], shm_ptr[1], termTimeS, termTimeNano);
+			printf("--%d seconds have passed since starting\n", outputCounter++); 
+	
+		}
+	}
+	output(pid, ppid, shm_ptr[0], shm_ptr[1], termTimeS, termTimeNano);
+	printf("--Terminating\n");
+
+	//detach from shared memory
 	shmdt(shm_ptr);
 	return EXIT_SUCCESS;
 }
