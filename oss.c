@@ -16,13 +16,13 @@ struct PCB {
 
 void help() {
         printf("This program is designed to have a parent process fork off into child processes.\n");
-	printf("The child processes don't do anything special: they simply output their parent's\n");
-	printf("process id, their own process id, and the number of times that the child has looped.\n\n");
-        printf("The executable takes three flags: [-n proc], [-s simul], and [-t iter].\n");
+	printf("The child processes use a simulated clock in shared memory to keep track of runtime.\n");
+	printf("The runtime is a random number of seconds and nanoseconds between 1 and the time limit prescribed by the user.\n\n");
+        printf("The executable takes three flags: [-n proc], [-s simul], and [-t timelimit].\n");
         printf("The value of proc determines the total number of child processes to be produced.\n");
 	printf("The value of simul determines the number of children that can run simultaneously.\n");
-	printf("The value of iter determines the number of times each child process will loop.\n");
-	printf("\nMADE BY JACOB (JT) FOX\nSeptember 14th, 2023\n");
+	printf("The value of timelimit determines the maximum number of seconds that a child process can take.\n");
+	printf("\nMADE BY JACOB (JT) FOX\nSeptember 28th, 2023\n");
 	exit(1);
 }
 
@@ -60,15 +60,9 @@ void outputTable(int rows, struct PCB processTable[]) {
 }
 
 int randNumGenerator(int max) {
+	srand(time(NULL));
 	return ((rand() % max) + 1);
 }
-
-/* TODO
- * Revise the help and README
- * Create shared memory using ftok and shmget
- * Iterate the 'system clock' using nested for loops i guess?
- * 
- */
 
 int main(int argc, char** argv) {
 	int option;
@@ -139,7 +133,6 @@ int main(int argc, char** argv) {
 			randNumNano = randNumGenerator(maxNano);
 			snprintf(secStr, sizeof(int), "%d", randNumS);
 			snprintf(nanoStr, sizeof(int), "%d", randNumNano);
-       			printf("RandNumS: %d, randNumNano: %d\n", randNumS, randNumNano);
 			execlp("./worker", secStr, nanoStr,  NULL);
        			exit(1);
        		}

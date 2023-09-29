@@ -18,7 +18,6 @@ int checkTime(int sysClockS, int sysClockNano, int termTimeS, int termTimeNano) 
 }
 
 int main(int argc, char** argv) {
-	printf("seconds: %d\n", atoi(argv[0]));
 	int seconds;
 	seconds = atoi(argv[0]);
 	int nanoseconds;
