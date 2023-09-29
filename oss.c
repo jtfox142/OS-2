@@ -5,6 +5,14 @@
 #include<stdlib.h>
 #include<sys/ipc.h>
 #include<sys/shm.h>
+#include<time.h>
+
+struct PCB {
+	int occupied;
+	pid_t pid;
+	int startTimeSec;
+	int startTimeNano;
+};
 
 void help() {
         printf("This program is designed to have a parent process fork off into child processes.\n");
@@ -26,6 +34,26 @@ void incrementClock(int *shm_ptr) {
 	}
 }
 
+void startPCB(int tableEntry, struct PCB *processTable[], int pidNumber, int s, int nano) {
+	processTable[tableEntry]->occupied = 1;
+	processTable[tableEntry]->pid = pidNumber;
+	processTable[tableEntry]->startTimeSec = s;
+	processTable[tableEntry]->startTimeNano = nano;
+}
+
+void endPCB(int pidNumber, int tableSize, struct PCB *processTable[]) {
+	int i;
+	for(i = 0; i < tableSize; i++) {
+		if(processTable[i]->pid == pidNumber) {
+			processTable[i]->occupied = 0;
+			return;
+		}
+	}
+}
+
+char randNumGenerator(int max) {
+	return ((rand() % max) + 1);
+}
 
 /* TODO
  * Revise the help and README
@@ -56,10 +84,7 @@ int main(int argc, char** argv) {
 		printf("Attaching to shared memory failed\n");
 		exit(1);
 	}
-
-	//set clock to zero
-	shm_ptr[0] = 0;
-	shm_ptr[1] = 0;
+	
 
 	while ((option = getopt(argc, argv, "hn:s:t:")) != -1) {
   		switch(option) {
@@ -78,42 +103,39 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	struct PCB {
-		int occupied;
-		pid_t pid;
-		int startTimeSec;
-		int startTimeNano;
-	};
-
-	struct PCB processTable[proc];
+	struct PCB *processTable[proc];
 
 	int totalChildren;
 	int runningChildren;
-	int finalChild;
 	totalChildren = 0;
-	runningChildren = 3; //this might be problematic
+	runningChildren = 0;
 
-	//test to see if the latest worker to be initiated has completed its operation?
+	//set clock to zero
+        shm_ptr[0] = 0;
+        shm_ptr[1] = 0;
 
-	/*while(totalChildren < proc) { 
-  		pid_t childPid = fork();
-       		finalChild = childPid;
-       		totalChildren++;
-       		runningChildren++;
-                                
+
+	//vars for fetching worker termTime values
+	const int maxNano = 1000000000;
+	char randNumS, randNumNano;
+
+	//initialize child processes
+	while(runningChildren < simul) { 
+  		pid_t childPid = fork();                
+
       		if(childPid == 0) {
-       			execlp("./worker", iter, NULL);
+			randNumS = randNumGenerator(timelimit);
+			randNumNano = randNumGenerator(maxNano);
+       			execlp("./worker", &randNumS, &randNumNano,  NULL);
        			exit(1);
        		}
-       		else{
-       			if(runningChildre
-       				wait(0);
-       				runningChildren--;
-       		}
-       	}*/
-
-	char test = 'c';
-	char *param = &test;
+		else {
+			startPCB(runningChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]);
+			runningChildren++;
+			totalChildren++;
+		}
+       	}
+      
 	do { //Children are running if a PCB is occupied
 		incrementClock(shm_ptr);
 
@@ -124,25 +146,27 @@ int main(int argc, char** argv) {
 		
 		if(halfSecondHasPassed)
 			outputTable();*/
-
-	//int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
-		//if(pid) {
-		//	endPCB(); //Show in the process table that this child is not being used, ie occupied = false
-		//	runningChildren--;
-		//	if(runningChildren < simul) {
+		
+		int status;
+		int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
+		if(pid) {
+			endPCB(pid, proc, processTable); //Show in the process table that this child is not being used, ie occupied = false
+			runningChildren--;
+			if(totalChildren < proc) {
 				pid_t childPid = fork(); //Launches child
 				if(childPid == 0) {
-					execlp("./worker", param, NULL);
+					randNumS = randNumGenerator(timelimit);
+					randNumNano = randNumGenerator(maxNano);
+					execlp("./worker", &randNumS, &randNumNano, NULL);
 					exit(1);
 				}
 				else {
-					printf("childPid: %d\n", childPid);
+					startPCB(totalChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]); //Add pid to PCB and set to occupied, set start time
+					runningChildren++;
+					totalChildren++;
 				}
-		//		startPCB(); //Add pid to PCB and set to occupied, set start time
-		//		runningChildren++;
-		//	}
-		//}
-		runningChildren--;
+			}
+		}
 	} while(runningChildren);	
 
 	pid_t wpid;
