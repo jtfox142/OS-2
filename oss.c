@@ -33,12 +33,12 @@ void incrementClock(int *shm_ptr) {
 		shm_ptr[0] += 1;
 	}
 }
-
-/*void startPCB(int tableEntry, struct PCB *processTable[], int pidNumber, int s, int nano) {
-	processTable[tableEntry]->occupied = 1;
-	processTable[tableEntry]->pid = pidNumber;
-	processTable[tableEntry]->startTimeSec = s;
-	processTable[tableEntry]->startTimeNano = nano;
+/*
+void startPCB(int tableEntry, struct PCB *processTable[], int pidNumber, int *time) {
+	(*processTable[tableEntry]).occupied = 1;
+	(*processTable[tableEntry]).pid = pidNumber;
+	(*processTable[tableEntry]).startTimeSec = time[0];
+	(*processTable[tableEntry]).startTimeNano = time[1];
 }
 
 void endPCB(int pidNumber, int tableSize, struct PCB *processTable[]) {
@@ -50,6 +50,14 @@ void endPCB(int pidNumber, int tableSize, struct PCB *processTable[]) {
 		}
 	}
 }*/
+
+void outputTable(int rows, struct PCB processTable[]) {
+	printf("Process Table:\nEntry Occupied   PID\tStartS StartN\n");
+	int i;
+	for(i = 0; i < rows; i++) {
+		printf("%d\t%d\t%d\t%d\t%d\t\n\n", i, processTable[i].occupied, processTable[i].pid, processTable[i].startTimeSec, processTable[i].startTimeNano);
+	}
+}
 
 int randNumGenerator(int max) {
 	return ((rand() % max) + 1);
@@ -75,7 +83,6 @@ int main(int argc, char** argv) {
 		printf("Shared memory allocation failed\n");
 		exit(1);
 	}
-	//printf("id: %d\n", shm_id);
 
 	//attach to shared memory
 	int *shm_ptr;
@@ -103,7 +110,7 @@ int main(int argc, char** argv) {
 		}
 	}
 
-	struct PCB *processTable[proc];
+	struct PCB processTable[proc];
 
 	int totalChildren;
 	int runningChildren;
@@ -137,25 +144,34 @@ int main(int argc, char** argv) {
        			exit(1);
        		}
 		else {
-//			startPCB(runningChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]);
+			processTable[runningChildren].occupied = 1;
+			processTable[runningChildren].pid = childPid;
+			processTable[runningChildren].startTimeSec = shm_ptr[0];
+			processTable[runningChildren].startTimeNano = shm_ptr[1];
 			runningChildren++;
 			totalChildren++;
 		}
        	}
       
-	do { //Children are running if a PCB is occupied
+	int outputTimer;
+	outputTimer = 0;
+	int halfSecond = 500000000;
+	do {
 		incrementClock(shm_ptr);
 
 		/*if(sixtySecondsHasPassed)
-			terminateProgram();
+			terminateProgram();*/
 		
-		if(halfSecondHasPassed)
-			outputTable();*/
+		if(abs(shm_ptr[1] - outputTimer) >= halfSecond){
+			outputTimer = shm_ptr[1];
+			printf("\nOSS PID:%d SysClockS:%d SysClockNano:%d\n", getpid(), shm_ptr[0], shm_ptr[1]); 
+			outputTable(proc, processTable);
+		}
 		
 		int status;
 		int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
 		if(pid) {
-//			endPCB(pid, proc, processTable); //Show in the process table that this child is not being used, ie occupied = false
+			processTable[totalChildren].occupied = 0;
 			runningChildren--;
 			if(totalChildren < proc) {
 				pid_t childPid = fork(); //Launches child
@@ -168,7 +184,10 @@ int main(int argc, char** argv) {
 					exit(1);
 				}
 				else {
-//					startPCB(totalChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]); //Add pid to PCB and set to occupied, set start time
+					processTable[totalChildren].occupied = 1;
+					processTable[totalChildren].pid = childPid;
+					processTable[totalChildren].startTimeSec = shm_ptr[0];
+					processTable[totalChildren].startTimeNano = shm_ptr[1];
 					runningChildren++;
 					totalChildren++;
 				}
