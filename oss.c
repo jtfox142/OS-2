@@ -34,7 +34,7 @@ void incrementClock(int *shm_ptr) {
 	}
 }
 
-void startPCB(int tableEntry, struct PCB *processTable[], int pidNumber, int s, int nano) {
+/*void startPCB(int tableEntry, struct PCB *processTable[], int pidNumber, int s, int nano) {
 	processTable[tableEntry]->occupied = 1;
 	processTable[tableEntry]->pid = pidNumber;
 	processTable[tableEntry]->startTimeSec = s;
@@ -49,9 +49,9 @@ void endPCB(int pidNumber, int tableSize, struct PCB *processTable[]) {
 			return;
 		}
 	}
-}
+}*/
 
-char randNumGenerator(int max) {
+int randNumGenerator(int max) {
 	return ((rand() % max) + 1);
 }
 
@@ -117,7 +117,11 @@ int main(int argc, char** argv) {
 
 	//vars for fetching worker termTime values
 	const int maxNano = 1000000000;
-	char randNumS, randNumNano;
+	int randNumS, randNumNano;
+
+	//char str for sending randNum values to the worker
+	char secStr[sizeof(int)];
+	char nanoStr[sizeof(int)];
 
 	//initialize child processes
 	while(runningChildren < simul) { 
@@ -126,11 +130,14 @@ int main(int argc, char** argv) {
       		if(childPid == 0) {
 			randNumS = randNumGenerator(timelimit);
 			randNumNano = randNumGenerator(maxNano);
-       			execlp("./worker", &randNumS, &randNumNano,  NULL);
+			snprintf(secStr, sizeof(int), "%d", randNumS);
+			snprintf(nanoStr, sizeof(int), "%d", randNumNano);
+       			printf("RandNumS: %d, randNumNano: %d\n", randNumS, randNumNano);
+			execlp("./worker", secStr, nanoStr,  NULL);
        			exit(1);
        		}
 		else {
-			startPCB(runningChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]);
+//			startPCB(runningChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]);
 			runningChildren++;
 			totalChildren++;
 		}
@@ -138,8 +145,6 @@ int main(int argc, char** argv) {
       
 	do { //Children are running if a PCB is occupied
 		incrementClock(shm_ptr);
-
-		printf("oss clock: %d : %d\n", shm_ptr[0], shm_ptr[1]);
 
 		/*if(sixtySecondsHasPassed)
 			terminateProgram();
@@ -150,18 +155,20 @@ int main(int argc, char** argv) {
 		int status;
 		int pid = waitpid(-1, &status, WNOHANG); //Will return 0 if no processes have terminated
 		if(pid) {
-			endPCB(pid, proc, processTable); //Show in the process table that this child is not being used, ie occupied = false
+//			endPCB(pid, proc, processTable); //Show in the process table that this child is not being used, ie occupied = false
 			runningChildren--;
 			if(totalChildren < proc) {
 				pid_t childPid = fork(); //Launches child
 				if(childPid == 0) {
 					randNumS = randNumGenerator(timelimit);
 					randNumNano = randNumGenerator(maxNano);
-					execlp("./worker", &randNumS, &randNumNano, NULL);
+					snprintf(secStr, sizeof(int), "%d", randNumS);
+					snprintf(nanoStr, sizeof(int), "%d", randNumNano);
+					execlp("./worker", secStr, nanoStr, NULL);
 					exit(1);
 				}
 				else {
-					startPCB(totalChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]); //Add pid to PCB and set to occupied, set start time
+//					startPCB(totalChildren, processTable, childPid, shm_ptr[0], shm_ptr[1]); //Add pid to PCB and set to occupied, set start time
 					runningChildren++;
 					totalChildren++;
 				}

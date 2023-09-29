@@ -9,7 +9,16 @@ void output(int pid, int ppid, int sysClockS, int sysClockNano, int termTimeS, i
 	printf("WORKER PID:%d PPID:%d SysclockS:%d SysClockNano:%d TermTimeS:%d TermTimeNano:%d\n", pid, ppid, sysClockS, sysClockNano, termTimeS, termTimeNano);	
 }
 
+int checkTime(int sysClockS, int sysClockNano, int termTimeS, int termTimeNano) {
+	if(sysClockS < termTimeS)
+		return 1;
+	if(sysClockNano < termTimeNano)
+		return 1;
+	return 0;
+}
+
 int main(int argc, char** argv) {
+	printf("seconds: %d\n", atoi(argv[0]));
 	int seconds;
 	seconds = atoi(argv[0]);
 	int nanoseconds;
@@ -36,7 +45,7 @@ int main(int argc, char** argv) {
 	output(pid, ppid, shm_ptr[0], shm_ptr[1], termTimeS, termTimeNano);	
 	printf("--Just starting\n");
 
-  	while (shm_ptr[0] < termTimeS && shm_ptr[1] < termTimeNano) {
+  	while (checkTime(shm_ptr[0], shm_ptr[1], termTimeS, termTimeNano)) {
 		if(shm_ptr[0] > outputTimer) {
 			outputTimer = shm_ptr[0];
 			output(pid, ppid, shm_ptr[0], shm_ptr[1], termTimeS, termTimeNano);
